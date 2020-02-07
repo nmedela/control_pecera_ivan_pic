@@ -1,0 +1,587 @@
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001 ;********************************************************************
+                      00002 ;Efecto de luz para pecera                                                                              
+                                    *
+                      00003 ;PUERTO A                                                       FLAG                                    
+                                            *
+                      00004 ;Bit0 E/S                                       Bit0  avisa debe prender um     *
+                      00005 ;Bit1 E/S                                       Bit1  avisa debe prender dm     *
+                      00006 ;Bit2 E/S                                       Bit2  avisa debe prender uh     *
+                      00007 ;Bit3 E/S                                       Bit3  avisa debe prender dh     *
+                      00008 ;Bit4 Salida                                    Bit4  avisa si estas config     *
+                      00009 ;                                                                                                       
+                                                            *
+                      00010 ;PUERTO B                                                                                               
+                                                    *
+                      00011 ;Bit0   bcd                                                                                             
+                                    *
+                      00012 ;Bit1   bcd                                                                                             
+                                    *
+                      00013 ;Bit2   bcd                                                                                             
+                                    *
+                      00014 ;Bit3   bcd                                                                                             
+                                    *
+                      00015 ;Bit4   unidad minutos                                                                                  
+                                    *
+                      00016 ;Bit5   decena minutos                                                                                  
+                                    *
+                      00017 ;Bit6   unidad hora                                                                                     
+                                            *
+                      00018 ;Bit7   decena hora                                                                                     
+                                    *
+                      00019 ;********************************************************************
+                      00020                 list p=16f84A
+                      00021                 #include p16f84.inc
+                      00001         LIST
+                      00002 ; P16F84.INC  Standard Header File, Version 2.00    Microchip Technology, Inc.
+Message[301]: MESSAGE: (Processor-header file mismatch.  Verify selected processor.)
+                      00136         LIST
+                      00022 
+  00000005            00023 porta           equ             05h
+  00000006            00024 portb           equ             06h              ;el puerto b esta en la posicion 06h de la ram
+  00000086            00025 trisb           equ             86h              ;regis de config de puerto b esta en la direcc 86h de l
+                            a ram
+  00000085            00026 trisa           equ             85h
+  00000003            00027 status          equ             03h
+  00000081            00028 opcion          equ             81h
+  00000001            00029 tmr0            equ             01h                                                      ;registro de es
+                            tado esta en la direcc 03h de la ram
+  0000000C            00030 contador        equ             0ch
+  0000000D            00031 tempo1          equ             0dh
+  0000000E            00032 tempo2          equ             0eh
+  0000000F            00033 tempo3          equ             0fh
+  00000010            00034 tempo4          equ             10h
+  00000011            00035 stat            equ             11h
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  00000012            00036 acum            equ             12h
+  0000000B            00037 intcon          equ             0bh
+  00000013            00038 flag            equ             13h
+  00000014            00039 veces           equ             14h
+  00000015            00040 unidad          equ             15h
+  00000016            00041 decena          equ             16h
+  00000017            00042 variables       equ             17h
+  00000018            00043 contador2       equ             18h             ;contador para apagar la alarma despues de 120s
+  00000019            00044 timeraux        equ             19h
+  0000001B            00045 horas           equ             1bh
+  0000001C            00046 minutos         equ             1ch
+  0000001D            00047 segundos        equ             1dh
+  0000001E            00048 numero          equ             1eh
+                      00049 
+                      00050 #define  banco0 bcf     status,5
+                      00051 #define  banco1 bsf     status,5
+                      00052 
+                      00053                         org             00h                             ;arranca la configuracion
+0000   2???           00054                         goto    inicio
+                      00055 
+                      00056 
+                      00057                         org             04h                     ; INTERRUPCION DEL TIMER!
+                      00058                 
+0004   110B           00059                         bcf             intcon,2        ;bajo la bandera de int
+0005   0092           00060                         movwf   acum            ;---------------------
+0006   0803           00061                         movf    status,0     ;--UNA ESPECIE DE---- para el acumulador
+0007   1283           00062                         banco0               ;----STACK POINTER--- y para el estado de las cosas
+0008   0091           00063                         movwf   stat        ;---------------------
+0009   1A13           00064                         btfsc   flag,4
+000A   2???           00065                         goto    recarga
+000B   0A99           00066                         incf    timeraux,1      ;incremento y si desborda,
+000C   1D03           00067                         btfss   status,2        ;hace el incremento de 1 segundo
+000D   2???           00068                         goto    recarga         ;rutina de interrupcion         
+000E   0A9C           00069                         incf    minutos,1                       ; DESDE ACA
+000F   081C           00070                         movfw   minutos;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;!!!!!
+0010   3C3C           00071                         sublw   3ch
+0011   1D03           00072                         btfss   status,2                                                                
+                                                    ;CHEQUEAR LA RUTINA DE CONTEO DE HORA MINUTOS Y SEGUNDOS
+0012   2???           00073                         goto    recarga2
+0013   019C           00074                         clrf    minutos;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;ACA VA SEGUNDOS
+                      00075                         ;incf   minutos,1
+                      00076                         ;movlw  3ch
+                      00077                         ;subwf  minutos,0
+                      00078                         ;btfss  status,2
+                      00079                         ;goto   recarga2
+                      00080                         ;clrf   minutos
+0014   0A9B           00081                         incf    horas,1
+0015   3018           00082                         movlw   18h
+0016   021B           00083                         subwf   horas,0
+0017   1C83           00084                         btfss   status,1
+0018   2???           00085                         goto    recarga2
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0019   019B           00086                         clrf    horas               ; HASTA ACA
+                      00087                         
+                      00088                         
+                      00089                         
+001A                  00090 recarga2        
+001A   303A           00091                         movlw   03ah            ;le vuelvo a cargar las cosas para que vuelva a hacer lo
+                             mismo.... con 3bh y b1 en tmr0 me atrasa 2 segundos en 10 minutos.... VA 3ah
+001B   0099           00092                         movwf   timeraux
+                      00093                         
+001C   30E8           00094 recarga         movlw   0e8h
+001D   0081           00095                         movwf   tmr0
+001E   1813           00096                         btfsc   flag,0
+001F   2???           00097                         goto    seguimo
+0020   1893           00098                         btfsc   flag,1
+0021   2???           00099                         goto    siguemos
+0022   1913           00100                         btfsc   flag,2
+0023   2???           00101                         goto    siguemos2
+0024   2???           00102                         goto    siguemos3
+                      00103                         
+0025   081C           00104 seguimo         movfw   minutos
+0026   0097           00105                         movwf   variables
+0027   2???           00106                         call    bcd
+                      00107                         
+0028   1013           00108                         bcf             flag,0
+0029   1493           00109                         bsf             flag,1
+002A   2???           00110                         goto    unimin
+002B   081C           00111 siguemos        movfw   minutos
+002C   0097           00112                         movwf   variables
+002D   2???           00113                         call    bcd
+                      00114                         
+002E   1093           00115                         bcf             flag,1
+002F   1513           00116                         bsf             flag,2
+0030   2???           00117                         goto    decmin
+                      00118 
+0031   081B           00119 siguemos2       movfw   horas   ;horas
+0032   0097           00120                         movwf   variables
+0033   2???           00121                         call    bcd
+0034   1113           00122                         bcf             flag,2
+0035   1593           00123                         bsf             flag,3
+0036   2???           00124                         goto    unihor
+0037   081B           00125 siguemos3       movfw   horas   ;horas
+0038   0097           00126                         movwf   variables
+0039   2???           00127                         call    bcd
+003A   1786           00128                         bsf             portb,7
+003B   1193           00129                         bcf             flag,3
+003C   1413           00130                         bsf             flag,0
+003D   2???           00131                         goto    dechor
+003E   0815           00132 unimin          movfw   unidad
+003F   390F           00133                         andlw   0fh
+0040   0095           00134                         movwf   unidad
+0041   0806           00135                         movfw   portb
+0042   3900           00136                         andlw   00h
+0043   0715           00137                         addwf   unidad,0
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00138 
+0044   390F           00139                         andlw   0fh
+0045   0086           00140                         movwf   portb
+0046   2???           00141                         call    mostrar 
+0047   1606           00142                         bsf             portb,4
+0048   2???           00143                         goto    hecho
+0049   0816           00144 decmin          movfw   decena
+004A   390F           00145                         andlw   0fh
+004B   0096           00146                         movwf   decena
+004C   0806           00147                         movfw   portb
+004D   3900           00148                         andlw   00h
+004E   0716           00149                         addwf   decena,0
+004F   0086           00150                         movwf   portb
+0050   2???           00151                         call    mostrar 
+0051   1686           00152                         bsf             portb,5
+0052   2???           00153                         goto    hecho
+0053   0815           00154 unihor          movfw   unidad
+0054   390F           00155                         andlw   0fh
+0055   0095           00156                         movwf   unidad
+0056   0806           00157                         movfw   portb
+0057   3900           00158                         andlw   00h
+0058   0415           00159                         iorwf   unidad,0
+0059   0086           00160                         movwf   portb
+005A   2???           00161                         call    mostrar
+005B   1706           00162                         bsf             portb,6                 
+005C   2???           00163                         goto    hecho
+005D   0816           00164 dechor          movfw   decena
+005E   390F           00165                         andlw   0fh
+005F   0096           00166                         movwf   decena
+0060   0806           00167                         movfw   portb
+0061   3900           00168                         andlw   00h
+0062   0416           00169                         iorwf   decena,0
+0063   0086           00170                         movwf   portb
+0064   2???           00171                         call    mostrar
+0065   1786           00172                         bsf             portb,7
+0066                  00173 hecho           
+0066   0811           00174                         movf    stat,0          ;--DUVUELVE-
+0067   0083           00175                         movwf   status          ;-----EL----
+0068   0E92           00176                         swapf   acum,1          ;---STACK---
+0069   0E12           00177                         swapf   acum,0          ;--POINTER--
+006A   0009           00178                         retfie                          ;regresa de la interrupcion
+                      00179 
+                      00180 
+                      00181 
+006B   0185           00182 inicio  clrf    porta
+006C   1683           00183                 banco1
+006D   3007           00184                 movlw   07h                             ; me ubico en el banco 1 para configurar puertos
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+006E   0085           00185                 movwf   trisa           ; pta 0 1 2  como entrada para configurar el reloj y pta 3 4 com
+                            o salida
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+006F   0186           00186                 clrf    trisb           ;ptbs como salidas
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0070   1181           00187                 bcf             opcion,3        ; pre. como TMR0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0071   1401           00188                 bsf             opcion,0        ; 1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0072   1081           00189                 bcf             opcion,1        ; 1 CONFIGURO PRE como 1/256  ( creo qe me da unos 50ms)
+                             pre= 111 y el tmr0 con 0x3c
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0073   1501           00190                 bsf             opcion,2        ; 1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0074   1281           00191                 bcf             opcion,5        ; clock/4
+0075   1283           00192                 banco0                          ; me vuelvo a ubicar en el banco0
+0076   178B           00193                 bsf             intcon,7        ;habilito las interrupciones globales
+0077   128B           00194                 bcf             intcon,5
+0078   0185           00195                 clrf    porta
+                      00196                 
+0079   0193           00197                         clrf    flag    
+007A   0186           00198                         clrf    portb           
+007B   018C           00199                         clrf    contador
+007C   018D           00200                         clrf    tempo1
+007D   018E           00201                         clrf    tempo2
+007E   30E8           00202                         movlw   0e8h            ;modifico el tmr0 para que desborde con 230 para 1 seg..
+                            . para 10 ms 217..   E8!!!
+007F   0081           00203                         movwf   tmr0
+0080   303A           00204                         movlw   3ah             ;memoria auxiliar para ayudar a el tmr0 y asi poder hace
+                            r una interrupcion de 1 segundo este me cuenta 17,, para 10ms 156
+0081   0099           00205                         movwf   timeraux
+0082   0196           00206                         clrf    decena
+0083   0195           00207                         clrf    unidad
+0084   019B           00208                         clrf    horas
+0085   019C           00209                         clrf    minutos
+0086   019D           00210                         clrf    segundos
+0087   1413           00211                         bsf             flag,0  ;porngo que inicie el bit 0 de laflag para que me encien
+                            da la unidad de los minutos
+0088   168B           00212                         bsf             intcon,5        ;habilito interrupcion TMR0
+0089   1613           00213                         bsf             flag,4
+008A   1293           00214                         bcf             flag,5
+                      00215                         
+008B                  00216 comienzo                ;btfss  flag,5  ;si esta en 0 quiere decir que configura los minutos, si esta en
+                             1 configura las horas
+008B   1C05           00217 ciclo2          btfss   porta,0 ;chequea el pulsador de arriba
+008C   2???           00218                         goto    pulsa0  ;va a el pulsador de arriba
+008D   1C85           00219                         btfss   porta,1 ;chequea el pulsador abajo
+008E   2???           00220                         goto    pulsa1; va a el pulsador de abajo
+008F   1D05           00221                         btfss   porta,2
+0090   2???           00222                         goto    pulsa2  ;va a el pulsador de aceptar
+0091   2???           00223                         goto    ciclo2
+                      00224 
+0092   2???           00225 pulsa0          call    delay           ;
+0093   1805           00226                         btfsc   porta,0
+0094   2???           00227                         goto    ciclo2
+0095   1C05           00228 suelta0         btfss   porta,0
+0096   2???           00229                         goto    suelta0         ;hasta que no suelte no sigue el pulsador de arriba
+0097   1E93           00230                         btfss   flag,5          
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0098   2???           00231                         goto    conmin          ;salta a incrementar los minutos
+0099   0A9B           00232                         incf    horas,1
+009A   3018           00233                         movlw   18h
+009B   021B           00234                         subwf   horas,0
+009C   1C83           00235                         btfss   status,1;
+009D   2???           00236                         goto    ciclo2
+009E   019B           00237                         clrf    horas
+009F   2???           00238                         goto    ciclo2                  
+                      00239 
+00A0   0A9C           00240 conmin          incf    minutos,1
+00A1   303C           00241                         movlw   3ch
+00A2   021C           00242                         subwf   minutos,0
+00A3   1D03           00243                         btfss   status,2
+00A4   2???           00244                         goto    ciclo2
+00A5   019C           00245                         clrf    minutos
+00A6   2???           00246                         goto    ciclo2          ;se fija con la resta si los minutos pasa os 59 y si pas
+                            a lo pone a 0
+                      00247 
+                      00248 
+                      00249 
+00A7   2???           00250 pulsa1          call    delay           ;
+00A8   1885           00251                         btfsc   porta,1
+00A9   2???           00252                         goto    ciclo2
+00AA   1C85           00253 suelta1         btfss   porta,1
+00AB   2???           00254                         goto    suelta1         ;hasta que no suelte no sigue el pulsador de arriba
+00AC   1E93           00255                         btfss   flag,5          
+00AD   2???           00256                         goto    conmin1         ;salta a incrementar los minutos
+00AE   081B           00257                         movfw   horas
+00AF   1D03           00258                         btfss   status,2;
+00B0   2???           00259                         goto    decc
+00B1   3017           00260                         movlw   17h
+00B2   009B           00261                         movwf   horas
+00B3   2???           00262                         goto    ciclo2                  
+00B4   039B           00263 decc            decf    horas,1
+00B5   2???           00264                         goto    ciclo2
+                      00265 
+00B6   081C           00266 conmin1         movfw   minutos
+00B7   1D03           00267                         btfss   status,2;
+00B8   2???           00268                         goto    decc1
+00B9   303B           00269                         movlw   3bh
+00BA   009C           00270                         movwf   minutos
+00BB   2???           00271                         goto    ciclo2          ;se fija con la resta si los minutos pasa os 59 y si pas
+                            a lo pone a 0
+00BC   039C           00272 decc1           decf    minutos,1
+00BD   2???           00273                         goto    ciclo2          
+00BE   2???           00274 pulsa2:         call    delay           ;
+00BF   1905           00275                         btfsc   porta,2
+00C0   2???           00276                         goto    ciclo2
+00C1   1D05           00277 suelta2         btfss   porta,2                                 ; aceptar
+00C2   2???           00278                         goto    suelta2
+00C3   1A93           00279                         btfsc   flag,5
+00C4   2???           00280                         goto    chequeo
+00C5   1693           00281                         bsf             flag,5
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00C6   2???           00282                         goto    ciclo2
+                      00283 
+00C7                  00284 chequeo:        
+00C7   1683           00285                         banco1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00C8   0185           00286                         clrf    trisa           ; pta 0 1 2 3 4 como salida, para hacer juego de luces y
+                             chequeo
+00C9   1283           00287                         banco0                          ; me vuelvo a ubicar en el banco0
+00CA   0185           00288                         clrf    porta
+                      00289                         
+00CB   2???           00290 chequeo1:       call    invierno
+00CC   2???           00291                         goto    chequeo1                ;HACER CHQUEO DE LAS HORAS PARA IR PRENDIENDO 
+                      00292 
+00CD                  00293 invierno:       
+00CD   0008           00294                         return
+                      00295                 ; EL PORTA EMPIEZA COMO ENTRADA PARA CONTROLAR EL RELOJ, EL RA4 TIENE QUE EMPEZAR EN 0, 
+                            FIJARSE SI USAR LOS 4 PULSADORES,
+                      00296                 ; DESPUES SE PONEN COMO SALIDAS Y DE A RATOS VA CHEUQEANDO A VER SI SE APRETO EL PULSADO
+                            R, SI SE APRETA PONER TODOS COMO ENTRADA, ASI SE CONFIGURA NUEVAMENTE EL RELOJ
+                      00297                 ; cambia la variable horas y minutos.. ver bien que onda si esta bien puesto
+                      00298 
+                      00299 
+00CE   0086           00300 mostrar         movwf   portb
+00CF   0008           00301                         return                  
+                      00302 
+                      00303 
+                      00304 
+00D0   3001           00305 delay           MOVLW   01H                ; DELAY   ECUACION aproximadamente ( (((((3.tempo4)+5).tempo3
+                            )+7).tempo2) / 1Mhz )
+00D1   008D           00306                         MOVWF   tempo1 
+00D2   3002           00307 aca1            MOVLW   02H                       
+00D3   008E           00308                         MOVWF   tempo2
+00D4   3064           00309 aca                     movlw   064h
+00D5   008F           00310                         movwf   tempo3
+00D6   3064           00311 aca2            movlw   064h
+00D7   0090           00312                         movwf   tempo4
+00D8   0B90           00313 aca4            decfsz  tempo4,1
+00D9   2???           00314                         goto    aca4
+00DA   0B8F           00315                         decfsz  tempo3,1
+00DB   2???           00316                         goto    aca2                                                                
+00DC   0B8E           00317                 DECFSZ  tempo2,1                                                                        
+                                 
+00DD   2???           00318                         GOTO    aca                                                                     
+                                                                      
+00DE   0B8D           00319                         DECFSZ  tempo1,1                                                                
+                                            
+00DF   2???           00320                         GOTO    aca1  
+00E0   0008           00321                         return  
+                      00322 
+00E1   0194           00323 bcd:            clrf    veces
+00E2   300A           00324 bcd1            movlw   0ah             
+00E3   0297           00325                 subwf   variables,1
+00E4   1C03           00326                         btfss   status,0
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00E5   2???           00327                         goto    negat
+00E6   1903           00328                         btfsc   status,2
+00E7   2???           00329                         goto    cerin
+00E8   0A94           00330                         incf    veces,1
+00E9   2???           00331                         goto    bcd1
+Message[305]: Using default destination of 1 (file).
+00EA   0997           00332 negat           comf    variables
+00EB   0817           00333                         movfw   variables
+00EC   3C09           00334                         sublw   09h
+00ED   0095           00335 fini            movwf   unidad
+00EE   0814           00336                         movfw   veces
+00EF   0096           00337                         movwf   decena
+00F0   0008           00338                         return
+00F1   0A94           00339 cerin           incf    veces,1
+00F2   0197           00340                         clrf    variables
+00F3   0817           00341                         movfw   variables
+00F4   2???           00342                         goto    fini
+                      00343 
+                      00344                         end
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE  9
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C                                 00000000
+DC                                00000001
+EEADR                             00000009
+EECON1                            00000088
+EECON2                            00000089
+EEDATA                            00000008
+EEIE                              00000006
+EEIF                              00000004
+F                                 00000001
+FSR                               00000004
+GIE                               00000007
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+NOT_PD                            00000003
+NOT_RBPU                          00000007
+NOT_TO                            00000004
+OPTION_REG                        00000081
+PCL                               00000002
+PCLATH                            0000000A
+PORTA                             00000005
+PORTB                             00000006
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+RBIE                              00000003
+RBIF                              00000000
+RD                                00000000
+RP0                               00000005
+RP1                               00000006
+STATUS                            00000003
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+TMR0                              00000001
+TRISA                             00000085
+TRISB                             00000086
+W                                 00000000
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+Z                                 00000002
+_CP_OFF                           00003FFF
+_CP_ON                            0000000F
+_HS_OSC                           00003FFE
+_LP_OSC                           00003FFC
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE 10
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_RC_OSC                           00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F84A                          00000001
+__DEBUG                           1
+aca                               000000D4
+aca1                              000000D2
+aca2                              000000D6
+aca4                              000000D8
+acum                              00000012
+banco0                            bcf     status,5
+banco1                            bsf     status,5
+bcd                               000000E1
+bcd1                              000000E2
+cerin                             000000F1
+chequeo                           000000C7
+chequeo1                          000000CB
+ciclo2                            0000008B
+comienzo                          0000008B
+conmin                            000000A0
+conmin1                           000000B6
+contador                          0000000C
+contador2                         00000018
+decc                              000000B4
+decc1                             000000BC
+decena                            00000016
+dechor                            0000005D
+decmin                            00000049
+delay                             000000D0
+fini                              000000ED
+flag                              00000013
+hecho                             00000066
+horas                             0000001B
+inicio                            0000006B
+intcon                            0000000B
+invierno                          000000CD
+minutos                           0000001C
+mostrar                           000000CE
+negat                             000000EA
+numero                            0000001E
+opcion                            00000081
+porta                             00000005
+portb                             00000006
+pulsa0                            00000092
+pulsa1                            000000A7
+pulsa2                            000000BE
+recarga                           0000001C
+recarga2                          0000001A
+seguimo                           00000025
+segundos                          0000001D
+siguemos                          0000002B
+siguemos2                         00000031
+MPASM  5.35beta                        PECERA.ASM   9-7-2013  23:26:01         PAGE 11
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+siguemos3                         00000037
+stat                              00000011
+status                            00000003
+suelta0                           00000095
+suelta1                           000000AA
+suelta2                           000000C1
+tempo1                            0000000D
+tempo2                            0000000E
+tempo3                            0000000F
+tempo4                            00000010
+timeraux                          00000019
+tmr0                              00000001
+trisa                             00000085
+trisb                             00000086
+unidad                            00000015
+unihor                            00000053
+unimin                            0000003E
+variables                         00000017
+veces                             00000014
+
+Errors   :     0
+Warnings :     0 reported,     0 suppressed
+Messages :    10 reported,     0 suppressed
+
+

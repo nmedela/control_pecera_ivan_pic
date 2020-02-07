@@ -1,0 +1,10 @@
+Message[301] C:\PROGRAM FILES\MICROCHIP\MPASM SUITE\P16F84.INC 37 : MESSAGE: (Processor-header file mismatch.  Verify selected processor.)
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 185 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 186 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 187 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 188 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 189 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 190 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 191 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 286 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[305] C:\USERS\NICO\DESKTOP\PECERA\PECERA.ASM 332 : Using default destination of 1 (file).

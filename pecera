@@ -1,0 +1,354 @@
+;********************************************************************
+;ALARMA PARA EL AUTO												*
+;Sensor para puertas; Pulsador para activar y desactivar			*
+;Sirena; Juego de luces;Led indicador;Pitido de aviso de activacion	*
+;PUERTO A							FLAG							*
+;Bit0 pulsador de act/desac			Bit0 alarma activada			*
+;Bit1 Sensores       				Bit1 confirmacion de activada   *
+;Bit2 entrada        				Bit2 aviso de que pasaron x seg *
+;Bit3 SALIDAS        				Bit3 pasaron 160 segundos		*
+;Bit4 SALIDAS        				Bit4 confirmacion de sonando	*
+;																	*
+;PUERTO B															*
+;Bit0 Led indicador     											*
+;Bit1 Luces de aviso												*
+;Bit2 pitido anunciador												*
+;Bit3 sirena           												*
+;Bit4 Led de aviso de que sonó										*
+;Bit5 no implementado												*
+;Bit6 no implementado												*
+;Bit7 no implementado												*
+;********************************************************************
+		list p=16f84A
+		#include p16f84.inc
+
+porta	 equ	 05h
+portb	 equ	 06h		 ;el puerto b esta en la posicion 06h de la ram
+trisb	 equ	 86h		 ;regis de config de puerto b esta en la direcc 86h de la ram
+trisa	 equ	 85h
+status	 equ	 03h
+opcion   equ	 81h
+tmr0	 equ	 01h							 ;registro de estado esta en la direcc 03h de la ram
+contador equ	 0ch
+tempo1	 equ	 0dh
+tempo2	 equ	 0eh
+tempo3	 equ	 0fh
+tempo4	 equ	 10h
+stat     equ	 11h
+acum	 equ	 12h
+intcon	 equ	 0bh
+flag	 equ	 13h
+veces	 equ	 14h
+unidad	 equ	 15h
+decena	 equ	 16h
+variables equ	17h
+contador2 equ	18h		;contador para apagar la alarma despues de 120s
+#define	 banco0	bcf	status,5
+#define	 banco1	bsf	status,5
+
+			org		00h		  		;arranca la configuracion
+			goto	inicio
+
+
+			org		04h			; INTERRUPCION DEL TIMER!
+		
+			bcf		intcon,2	;bajo la bandera de int
+			movwf	acum		;---------------------
+			movf	status,0     ;--UNA ESPECIE DE---- para el acumulador
+			banco0	             ;----STACK POINTER--- y para el estado de las cosas
+			movwf	stat        ;---------------------
+			
+
+			decfsz	contador,1		; rutina de interrupcion
+			goto	hecho
+			movfw	unidad
+			movwf	contador
+			decfsz	variables,1	
+			goto	hecho
+			btfsc	flag,1
+			goto	poreldos
+			bsf		flag,1	
+			goto 	hecho
+poreldos	bsf		flag,2
+			btfsc	flag,4
+			decfsz	contador2,1
+			goto	hecho
+			bsf		flag,3
+hecho		movf	stat,0		;--DUVUELVE-
+			movwf	status		;-----EL----
+			swapf	acum,1		;---STACK---
+			swapf	acum,0		;--POINTER--
+			retfie				;regresa de la interrupcion
+
+
+
+inicio	banco1				; me ubico en el banco 1 para configurar puertos
+		movlw	07h
+		movwf	trisa		;configuro el pta 0,1,2 como entrada y los demas como salidas
+		clrf	trisb		;ptbs como salidas
+		bcf		opcion,3	; pre. como TMR0
+		bsf		opcion,0	; 1
+		bcf		opcion,1	; 1 CONFIGURO PRE como 1/256  ( creo qe me da unos 50ms) pre= 111 y el tmr0 con 0x3c
+		bsf		opcion,2	; 1
+		bcf		opcion,5	; clock/4
+		banco0				; me vuelvo a ubicar en el banco0
+		bsf		intcon,7	;habilito las interrupciones globales
+		bcf		intcon,5	;Deshabilito interrupcion TMR0
+		clrf 	porta
+
+comien		clrf	flag	
+			clrf  	portb		; P R O G R A M A !
+			clrf 	contador
+			clrf	tempo1
+			clrf    tempo2
+			movlw	3ch
+			movwf	tmr0
+			movlw	0c8h
+			movwf	contador
+			movwf	unidad
+			movlw	02h
+			movwf	variables
+			clrf	decena
+			clrf	unidad
+ciclo
+			btfsc	flag,0
+			btfss	flag,1
+			goto	pulso
+activar:	
+			bcf		flag,2
+			movlw	3ch
+			movwf	tmr0
+			movlw	28h
+			movwf	contador
+			movwf	unidad
+			movlw	02h
+			movwf	variables
+			movlw	01h
+			xorwf	portb,1	;titila led
+			bsf		intcon,5
+chequea		
+			btfss	porta,1	;chequeo sensor
+			goto	desti
+			btfss	flag,2	;si esta en 1 quiere decir que pasaron X segundos del led prendido o apagado
+			goto	chequea
+			goto	activar	; si paso el tiempo lo vuelve a prender o apagar
+desti		call	delay
+			btfsc	porta,1
+			goto	chequea
+			bsf		portb,2
+			bcf		intcon,5				;descuenta el tiempo para desactivar o sonar alarma	
+			movlw	3ch
+			movwf	tmr0
+			movlw	0c8h					; 200t a el contador, cuenta 10segundos
+			movwf	contador
+			movwf	unidad
+			movlw	04h
+			movwf	variables
+			bcf		flag,2
+			bsf		intcon,5
+preguntae	btfss	flag,2				;pregunta si pasaron X segundos de la cuenta regresiva
+			goto	pregunta12
+			movlw	0ffh
+			movwf	contador2
+			goto	suena
+pregunta12	btfss	porta,0		;pregunta si pulsador de desactivar esta apretado
+			call	delay
+			btfsc	porta,0
+			goto	preguntae
+			goto	vuei
+
+pregunta	
+			btfss	flag,2				;pregunta si pasaron X segundos de la cuenta regresiva
+			goto	pregunta1			
+			btfss	flag,3				; pregunta si pasaron 120 s
+			goto	suena
+			bcf		intcon,5
+			bcf		portb,1
+			bcf		portb,3
+			bcf		portb,2
+			bcf		portb,0
+			bcf		flag,4
+			bcf		flag,3
+			bsf		portb,4		;prendo el led de que sonó
+pregunta8	btfss	porta,0		;pregunta si pulsador de desactivar esta apretado
+			call	delay
+			btfsc	porta,0
+			goto	pregunta8
+cerii		btfss	porta,0
+			goto	cerii
+			bcf		portb,0
+			bcf		portb,4
+			goto	empeza
+		
+suena		bcf		intcon,5
+			movlw	03ch
+			movwf	tmr0
+			movlw	014h		;timer para que se active cada  xsegundos
+			movwf	unidad
+			movwf	contador
+			movlw	01h
+			movwf	variables
+			movlw	02h
+			xorwf	portb,1
+			bsf		portb,3
+			bcf		flag,2
+			bsf		flag,4
+			bsf		intcon,5
+pregunta1	btfss	porta,0		;pregunta si pulsador de desactivar esta apretado
+			call	delay
+			btfsc	porta,0
+			goto	pregunta
+vuei		btfss	porta,0
+			goto	vuei
+			bcf		portb,0
+empeza		movlw	03h
+			movwf	veces
+ap			bcf		portb,0
+			bcf		portb,3
+			bcf		portb,1		;apago led, sirena, y luces de aviso
+			bcf		flag,2
+			bcf		portb,2
+			bcf		intcon,5
+			movlw	03ch
+			movwf	tmr0
+			movlw	0ah
+			movwf	contador
+			movwf	unidad
+			movlw	01h
+			movwf	variables
+			bsf		intcon,5
+otri		btfss	flag,2
+			goto	otri
+			bcf		flag,2
+			decfsz	veces,1
+			goto	pren
+			bcf		flag,0
+			bcf		flag,1
+			bcf		intcon,5
+			goto	ciclo				
+pren		bsf		portb,1
+			bsf		portb,3
+			bcf		flag,2
+			bcf		intcon,5
+			movlw	03ch
+			movwf	tmr0
+			movlw	0ah
+			movwf	contador
+			movwf	unidad
+			movlw	01h
+			movwf	variables
+			bsf		intcon,5
+otri1		btfss	flag,2
+			goto	otri1
+			goto	ap			
+
+pulso:		btfsc	porta,0
+			goto	ciclo
+			call	delay
+			btfsc	porta,0
+			goto	ciclo
+vuel		btfss	porta,0
+			goto	vuel
+			bsf		portb,0
+			movlw	3ch
+			movwf	tmr0
+			movlw	0c8h
+			movwf	contador
+			movwf	unidad
+			movlw	04h
+			movwf	variables
+			bsf		intcon,5	;habilito las interrupciones TMR0
+			bsf		flag,0
+cancela?	btfsc	porta,0
+			goto	confirma
+			call	delay
+			btfsc	porta,0
+			goto	confirma
+vuelt		bsf		flag,1
+			goto	vuei
+			
+confirma	btfss	flag,1
+			goto	cancela?
+			bsf		portb,3	;chillido de alarma por medio segundo
+			bsf		portb,1	;lucz de aviso
+			bcf		intcon,5
+			movlw	3ch
+			movwf	tmr0
+			movlw	0ah
+			movwf	contador
+			movwf	unidad
+			movlw	01h
+			movwf	variables
+			bcf		flag,2
+			bsf		intcon,5
+insisti		btfss	flag,2		;por eso cargo 60 en el TMR0 y 5 en el contador
+			goto	insisti
+			bcf		portb,3
+			bcf		portb,1		;apago luz y sirena
+			bsf		flag,0
+			bsf		flag,1
+			bcf		flag,2
+			bcf		intcon,5
+			goto	ciclo
+			
+sensores:	return
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+			btfsc	porta,2
+			goto	ciclo
+
+otra		btfss	porta,2
+			goto	otra
+			incf	contador,1
+		
+			movlw	64h
+			subwf	contador,0
+			btfsc	status,0
+			goto	comien
+			movfw	contador
+			movwf	variables
+			call	bcd
+			goto	ciclo
+			
+
+
+
+delay	MOVLW   01H                ; DELAY   ECUACION aproximadamente ( (((((3.tempo4)+5).tempo3)+7).tempo2) / 1Mhz )
+		MOVWF   tempo1 
+aca1    MOVLW 	02H                       
+  		MOVWF   tempo2
+aca		movlw	064h
+		movwf	tempo3
+aca2	movlw	064h
+		movwf	tempo4
+aca4	decfsz	tempo4,1
+		goto	aca4
+		decfsz	tempo3,1
+		goto	aca2                                                                
+	    DECFSZ	tempo2,1                                                                             
+		GOTO    aca                                                                                                               
+		DECFSZ  tempo1,1                                                                                
+		GOTO    aca1  
+		return	
+
+bcd:	clrf	veces
+bcd1	movlw	0ah		
+    	subwf	variables,1
+		btfss	status,0
+		goto	negat
+		btfsc	status,2
+		goto	cerin
+		incf	veces,1
+		goto	bcd1
+negat	comf	variables
+		movfw	variables
+		sublw	09h
+fini	movwf	unidad
+		movfw	veces
+		movwf	decena
+		return
+cerin	incf	veces,1
+		clrf	variables
+		movfw	variables
+		goto	fini
+
+		end
